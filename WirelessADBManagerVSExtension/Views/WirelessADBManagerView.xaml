@@ -1,0 +1,102 @@
+﻿<Window
+	x:Class="WirelessADBManagerVSExtension.Views.WirelessADBManagerView"
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:converters="clr-namespace:WirelessADBManagerVSExtension.Converters"
+	xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+	xmlns:local="clr-namespace:WirelessADBManagerVSExtension.Views"
+	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+	xmlns:models="clr-namespace:WirelessADBManagerVSExtension.Models"
+	xmlns:qrcoder="clr-namespace:QRCoder.Xaml;assembly=QRCoder.Xaml"
+	xmlns:vm="clr-namespace:WirelessADBManagerVSExtension.ViewModels"
+	x:Name="MainWindow"
+	Title="Wireless ADB Manager"
+	MaxWidth="800"
+	MaxHeight="500"
+	d:DataContext="{d:DesignInstance Type=vm:WirelessAdbManagerViewModel}"
+	d:DesignHeight="500"
+	d:DesignWidth="800"
+	Background="{Binding BackgroundBrush}"
+	ResizeMode="NoResize"
+	mc:Ignorable="d">
+	<Window.DataContext>
+		<vm:WirelessAdbManagerViewModel />
+	</Window.DataContext>
+	<Window.Resources>
+		<converters:DeviceStateToButtonTextConverter x:Key="DeviceStateToButtonTextConverter" />
+	</Window.Resources>
+	<Grid Margin="50">
+		<Grid.ColumnDefinitions>
+			<ColumnDefinition Width="Auto" />
+			<ColumnDefinition Width="*" />
+		</Grid.ColumnDefinitions>
+
+		<StackPanel Grid.Column="0" Margin="0,0,25,0">
+			<Image
+				x:Name="QRImage"
+				MaxHeight="200"
+				Source="{Binding QrDataImageSource}" />
+			<TextBlock
+				MaxWidth="{Binding ElementName=QRImage, Path=ActualWidth}"
+				Margin="0,20,0,0"
+				HorizontalAlignment="Center"
+				Foreground="{Binding TextBrush}"
+				Text="Scan the QR code from you phone’s Developer Settings under Wireless Debugging"
+				TextAlignment="Center"
+				TextWrapping="Wrap" />
+		</StackPanel>
+
+		<StackPanel Grid.Column="1" Margin="25,0,0,0">
+			<TextBlock
+				FontSize="24"
+				Foreground="{Binding TextBrush}"
+				Text="Discovering..." />
+			<ProgressBar Margin="0,5,0,10" IsIndeterminate="True" />
+			<ListView
+				Margin="0,10,0,0"
+				VerticalAlignment="Stretch"
+				HorizontalContentAlignment="Stretch"
+				VerticalContentAlignment="Stretch"
+				Background="Transparent"
+				ItemsSource="{Binding Devices}">
+				<ListView.ItemTemplate>
+					<DataTemplate DataType="models:DeviceInfo">
+						<Grid Margin="5">
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="1*" />
+								<ColumnDefinition Width="2*" />
+								<ColumnDefinition Width="2*" />
+								<ColumnDefinition Width="2*" />
+							</Grid.ColumnDefinitions>
+							<Image
+								Grid.Column="0"
+								Width="40"
+								Height="40"
+								Source="/WirelessADBManagerVSExtension;component/Resources/WirelessADBManager_Device_Icon.png"
+								Stretch="Fill" />
+							<TextBlock
+								Grid.Column="1"
+								VerticalAlignment="Center"
+								Foreground="{Binding ElementName=MainWindow, Path=DataContext.TextBrush}"
+								Text="{Binding Model}" />
+							<TextBlock
+								Grid.Column="2"
+								VerticalAlignment="Center"
+								Foreground="{Binding ElementName=MainWindow, Path=DataContext.TextBrush}"
+								Text="{Binding Ip}" />
+							<Button
+								Grid.Column="3"
+								Padding="10"
+								VerticalAlignment="Center"
+								Background="{Binding ElementName=MainWindow, Path=DataContext.BackgroundBrush}"
+								Click="Button_Click"
+								Content="{Binding State, Converter={StaticResource DeviceStateToButtonTextConverter}}"
+								Foreground="{Binding ElementName=MainWindow, Path=DataContext.TextBrush}" />
+						</Grid>
+					</DataTemplate>
+				</ListView.ItemTemplate>
+			</ListView>
+		</StackPanel>
+
+	</Grid>
+</Window>
