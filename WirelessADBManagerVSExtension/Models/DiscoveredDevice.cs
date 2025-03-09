@@ -14,4 +14,6 @@ internal class DiscoveredDevice(string ip)
     internal ServiceMode Mode { get; set; }
     internal DateTime LastPairingAnnouncementTime { get; set; }
     internal DateTime LastManualPairAnnouncementTime { get; set; }
+    internal bool IsPaired { get; set; }
+    internal bool IsConnected { get; set; }
 }

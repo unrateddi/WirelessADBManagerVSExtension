@@ -57,6 +57,9 @@
     <Compile Include="Services\WirelessADBManagerService.cs" />
     <Compile Include="ViewModels\BaseNotify.cs" />
     <Compile Include="ViewModels\WirelessADBManagerViewModel.cs" />
+    <Compile Include="Views\ManualPairingCodePromptView.xaml.cs">
+      <DependentUpon>ManualPairingCodePromptView.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Views\WirelessADBManagerView.xaml.cs">
       <DependentUpon>WirelessADBManagerView.xaml</DependentUpon>
     </Compile>
@@ -84,6 +87,9 @@
     <PackageReference Include="AdvancedSharpAdbClient">
       <Version>3.4.14</Version>
     </PackageReference>
+    <PackageReference Include="Microsoft.VisualStudio.Extensibility">
+      <Version>17.13.2060</Version>
+    </PackageReference>
     <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.13.40008" ExcludeAssets="runtime" NoWarn="NU1604">
       <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
@@ -101,6 +107,10 @@
     </VSCTCompile>
   </ItemGroup>
   <ItemGroup>
+    <Page Include="Views\ManualPairingCodePromptView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="Views\WirelessADBManagerView.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>

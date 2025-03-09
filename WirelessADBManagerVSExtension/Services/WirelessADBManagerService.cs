@@ -16,6 +16,8 @@ namespace WirelessADBManagerVSExtension.Services;
 
 public class WirelessAdbManagerService
 {
+    #region Constants
+
     const int KeySize = 5;
     const string ConnectService = "_adb-tls-connect._tcp.local.";
     const string PairingService = "_adb-tls-pairing._tcp.local.";
@@ -23,11 +25,18 @@ public class WirelessAdbManagerService
     const int ServiceBrowseCooldownInMilliseconds = 500;
     const int PairingOverrideThresholdInSeconds = 3;
 
+    #endregion
+
+    #region Statics
+
     static readonly List<string> s_serviceTypes = [ConnectService, PairingService];
     static readonly char[] s_chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890".ToCharArray();
     static readonly string s_pairingKey = $"ADB_WIFI_{GetUniqueKey(KeySize)}";
     static readonly string s_password = GetUniqueKey(KeySize);
-    static readonly List<DiscoveredDevice> s_discoveredDevices = [];
+
+    #endregion
+
+    readonly List<DiscoveredDevice> _discoveredDevices = [];
 
     internal string GetQrData() => $"WIFI:T:ADB;S:{s_pairingKey};P:{s_password};;";
 
@@ -37,13 +46,16 @@ public class WirelessAdbManagerService
 
         await foreach (var discoveredService in discoveredServices.WithCancellation(cancellationToken))
         {
+            var cachedDiscoveredDevice = _discoveredDevices.FirstOrDefault(d => d.Ip == discoveredService.Ip);
+
+            if (cachedDiscoveredDevice?.IsConnected ?? false)
+                continue;
+
             if (discoveredService.ServiceType == $"{s_pairingKey}.{PairingService}")
             {
-                var cachedDiscoveredDevice = s_discoveredDevices.FirstOrDefault(d => d.Ip == discoveredService.Ip);
-
                 if (cachedDiscoveredDevice is null)
                 {
-                    DiscoveredDevice newCachedDiscoveredDevice = new(discoveredService.Ip)
+                    cachedDiscoveredDevice = new(discoveredService.Ip)
                     {
                         PairingPort = discoveredService.Port,
                         PairingServiceId = discoveredService.ServiceType,
@@ -51,7 +63,7 @@ public class WirelessAdbManagerService
                         LastPairingAnnouncementTime = discoveredService.AnnouncementTime
                     };
 
-                    s_discoveredDevices.Add(newCachedDiscoveredDevice);
+                    _discoveredDevices.Add(cachedDiscoveredDevice);
 
                     yield return new DeviceInfo
                     {
@@ -84,12 +96,14 @@ public class WirelessAdbManagerService
                     continue;
                 }
 
-                var pairedSuccessfully = await AdbPairAsync(discoveredService.Ip, cachedDiscoveredDevice.PairingPort, s_password, cancellationToken);
+                var pairedSuccessfully = await AdbPairAsync(cachedDiscoveredDevice.Ip, cachedDiscoveredDevice.PairingPort, s_password, cancellationToken);
 
                 if (!pairedSuccessfully)
                 {
                     continue;
                 }
+
+                cachedDiscoveredDevice.IsPaired = true;
 
                 yield return new DeviceInfo
                 {
@@ -100,16 +114,14 @@ public class WirelessAdbManagerService
                     State = DeviceStates.Connecting
                 };
 
-                var (Success, ConnectedDevice) = await AdbConnectAsync(discoveredService.Ip, cachedDiscoveredDevice.ConnectPort, cancellationToken);
+                var (Success, ConnectedDevice) = await AdbConnectAsync(cachedDiscoveredDevice.Ip, cachedDiscoveredDevice.ConnectPort, cancellationToken);
 
                 if (Success)
                 {
-                    var connectedDevice = ConnectedDevice;
-
                     yield return new DeviceInfo
                     {
-                        Model = connectedDevice.Model,
-                        Ip = discoveredService.Ip,
+                        Model = ConnectedDevice.Model,
+                        Ip = cachedDiscoveredDevice.Ip,
                         IsConnected = true,
                         IsPaired = true,
                         State = DeviceStates.Connected
@@ -121,18 +133,16 @@ public class WirelessAdbManagerService
 
             if (discoveredService.ServiceType.EndsWith(ConnectService))
             {
-                var cachedDiscoveredDevice = s_discoveredDevices.FirstOrDefault(d => d.Ip == discoveredService.Ip);
-
                 if (cachedDiscoveredDevice is null)
                 {
-                    DiscoveredDevice newCachedDiscoveredDevice = new(discoveredService.Ip)
+                    cachedDiscoveredDevice = new(discoveredService.Ip)
                     {
                         ConnectPort = discoveredService.Port,
                         ConnectServiceId = discoveredService.ServiceType,
                         Mode = ServiceMode.Connect
                     };
 
-                    s_discoveredDevices.Add(newCachedDiscoveredDevice);
+                    _discoveredDevices.Add(cachedDiscoveredDevice);
 
                     yield return new DeviceInfo
                     {
@@ -159,7 +169,7 @@ public class WirelessAdbManagerService
                 yield return new DeviceInfo
                 {
                     Model = ModelPlaceholder,
-                    Ip = discoveredService.Ip,
+                    Ip = cachedDiscoveredDevice.Ip,
                     IsConnected = false,
                     IsPaired = false,
                     State = state
@@ -170,8 +180,6 @@ public class WirelessAdbManagerService
 
             if (discoveredService.ServiceType.EndsWith(PairingService))
             {
-                var cachedDiscoveredDevice = s_discoveredDevices.FirstOrDefault(d => d.Ip == discoveredService.Ip);
-
                 if (cachedDiscoveredDevice is null)
                 {
                     DiscoveredDevice newCachedDiscoveredDevice = new(discoveredService.Ip)
@@ -182,7 +190,7 @@ public class WirelessAdbManagerService
                         LastManualPairAnnouncementTime = discoveredService.AnnouncementTime
                     };
 
-                    s_discoveredDevices.Add(newCachedDiscoveredDevice);
+                    _discoveredDevices.Add(newCachedDiscoveredDevice);
 
                     yield return new DeviceInfo
                     {
@@ -214,9 +222,11 @@ public class WirelessAdbManagerService
 
     internal async Task<DeviceInfo> ConnectDeviceAsync(DeviceInfo deviceInfo, CancellationToken cancellationToken)
     {
-        var cachedDiscoveredDevice = s_discoveredDevices.FirstOrDefault(d => d.Ip == deviceInfo.Ip);
+        var cachedDiscoveredDevice = _discoveredDevices.FirstOrDefault(d => d.Ip == deviceInfo.Ip);
 
         var (Success, ConnectedDevice) = await AdbConnectAsync(cachedDiscoveredDevice.Ip, cachedDiscoveredDevice.ConnectPort, cancellationToken);
+
+        cachedDiscoveredDevice.IsConnected = Success;
 
         return new DeviceInfo
         {
@@ -230,9 +240,11 @@ public class WirelessAdbManagerService
 
     internal async Task<DeviceInfo> DisconnectDeviceAsync(DeviceInfo deviceInfo, CancellationToken cancellationToken)
     {
-        var cachedDiscoveredDevice = s_discoveredDevices.FirstOrDefault(d => d.Ip == deviceInfo.Ip);
+        var cachedDiscoveredDevice = _discoveredDevices.FirstOrDefault(d => d.Ip == deviceInfo.Ip);
 
         var disconnectedSuccessfully = await AdbDisconnectAsync(cachedDiscoveredDevice.Ip, cachedDiscoveredDevice.ConnectPort, cancellationToken);
+
+        cachedDiscoveredDevice.IsConnected = !disconnectedSuccessfully;
 
         return new DeviceInfo
         {
@@ -246,7 +258,7 @@ public class WirelessAdbManagerService
 
     internal async Task<DeviceInfo> ManualPairDeviceAsync(DeviceInfo deviceInfo, string password, CancellationToken cancellationToken)
     {
-        var cachedDiscoveredDevice = s_discoveredDevices.FirstOrDefault(d => d.Ip == deviceInfo.Ip);
+        var cachedDiscoveredDevice = _discoveredDevices.FirstOrDefault(d => d.Ip == deviceInfo.Ip);
 
         var pairedSuccessfully = await AdbPairAsync(cachedDiscoveredDevice.Ip, cachedDiscoveredDevice.PairingPort, password, cancellationToken);
 
@@ -258,7 +270,7 @@ public class WirelessAdbManagerService
                 Ip = cachedDiscoveredDevice.Ip,
                 IsConnected = false,
                 IsPaired = false,
-                State = DeviceStates.Connecting
+                State = DeviceStates.ManualPair
             };
         }
 
@@ -307,16 +319,24 @@ public class WirelessAdbManagerService
         await EnsureAdbServerIsRunningAsync(cancellationToken);
 
         var adbClient = new AdbClient();
-        await adbClient.ConnectAsync(ip, port, cancellationToken);
-        var devices = await adbClient.GetDevicesAsync();
-        var device = devices.FirstOrDefault(d => d.Serial == $"{ip}:{port}");
 
-        if (device == null)
+        try
         {
-            return (false, new DeviceData());
-        }
+            await adbClient.ConnectAsync(ip, port, cancellationToken);
+            var devices = await adbClient.GetDevicesAsync();
+            var device = devices.FirstOrDefault(d => d.Serial == $"{ip}:{port}");
 
-        return (true, device);
+            if (device == default(DeviceData))
+            {
+                return (false, new DeviceData());
+            }
+
+            return (true, device);
+        }
+        catch
+        {
+            return (false, default(DeviceData));
+        }
     }
 
     private static async Task<bool> AdbDisconnectAsync(string ip, int port, CancellationToken cancellationToken)
@@ -324,8 +344,17 @@ public class WirelessAdbManagerService
         await EnsureAdbServerIsRunningAsync(cancellationToken);
 
         var adbClient = new AdbClient();
-        var disconnectResult = await adbClient.DisconnectAsync(ip, port, cancellationToken);
-        return !disconnectResult.StartsWith("error");
+
+        try
+        {
+            var disconnectResult = await adbClient.DisconnectAsync(ip, port, cancellationToken);
+
+            return !disconnectResult.StartsWith("error");
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static async Task<bool> AdbPairAsync(string ip, int port, string password, CancellationToken cancellationToken)
@@ -333,8 +362,17 @@ public class WirelessAdbManagerService
         await EnsureAdbServerIsRunningAsync(cancellationToken);
 
         var adbClient = new AdbClient();
-        var pairingResult = await adbClient.PairAsync(ip, port, password, cancellationToken);
-        return pairingResult.StartsWith("Failed");
+
+        try
+        {
+            var pairingResult = await adbClient.PairAsync(ip, port, password, cancellationToken);
+
+            return !pairingResult.StartsWith("Failed");
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static async Task EnsureAdbServerIsRunningAsync(CancellationToken cancellationToken)

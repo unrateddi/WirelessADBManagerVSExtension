@@ -1,4 +1,7 @@
-﻿using Microsoft.VisualStudio.PlatformUI;
+﻿using Microsoft.VisualStudio.Extensibility;
+using Microsoft.VisualStudio.Extensibility.Shell;
+using Microsoft.VisualStudio.PlatformUI;
+using Microsoft.VisualStudio.Shell;
 using QRCoder;
 using QRCoder.Xaml;
 using System.Collections.ObjectModel;
@@ -10,6 +13,7 @@ using System.Windows.Media;
 using WirelessADBManagerVSExtension.Helpers;
 using WirelessADBManagerVSExtension.Models;
 using WirelessADBManagerVSExtension.Services;
+using WirelessADBManagerVSExtension.Views;
 
 namespace WirelessADBManagerVSExtension.ViewModels;
 
@@ -52,7 +56,7 @@ public class WirelessAdbManagerViewModel : BaseNotify
         }
     }
 
-    private SolidColorBrush _textBrush = new(ColorHelpers.GetVsThemeColor(EnvironmentColors.ToolWindowTextBrushKey, Colors.White));
+    private SolidColorBrush _textBrush = new(ColorHelpers.GetVsThemeColor(EnvironmentColors.ToolWindowTextBrushKey, Colors.Black));
     public SolidColorBrush TextBrush
     {
         get => _textBrush;
@@ -109,7 +113,13 @@ public class WirelessAdbManagerViewModel : BaseNotify
 
     private async Task PairDeviceManuallyAsync(DeviceInfo deviceInfo)
     {
-        string password = string.Empty;
+        var pairingCodeDialog = new ManualPairingCodePromptView();
+        pairingCodeDialog.ShowDialog();
+
+        if (!pairingCodeDialog.DialogResult ?? false)
+            return;
+
+        string password = pairingCodeDialog.UserEnteredPairingCode;
 
         var connectedDeviceInfo = await _wirelessAdbManagerService.ManualPairDeviceAsync(deviceInfo, password, _cancellationTokenSource.Token);
 
