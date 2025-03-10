@@ -2,8 +2,6 @@
 
 Wireless ADB Manager is a Visual Studio extension that helps you pair and connect Android devices for Wireless Debugging easily. The most simple use-case scenario is to connect an Android device by scanning the QR-Code produced by this extension. While this is still in Preview version this scenario should work as expected. On top of that there is a discovery mechanism to provide feedback of which devices have Wireless Debugging on, what is the state of the connection and the action a user can do. The extension also supports Manual Pairing by Pairing Code, directly Connect to already paired devices without having to scan a QR-Code or enter a Pairing Code again and also Disconnect a Connected device.
 
-
-
 ## What you can do
 
 - Easily manage your Wireless ADB Connections directly through Visual Studio
@@ -15,8 +13,6 @@ Wireless ADB Manager is a Visual Studio extension that helps you pair and connec
 - Direcltly Connect to an already paired device
 
 - Disconnect a Connected device
-
-
 
 ## Usage
 
@@ -38,23 +34,19 @@ While scanning the QR code each time is not that big of an effort and should wor
 
 After successfully pairing and connecting or directly connecting to an Android device the corresponding entry in the discovery list should show the "Disconnect" button. By hitting "Discconet" Wireless ADB Manager will disconnect the session with that device. Disconnecting doesn't remove the pairing between the PC and the Android device and should be able to Connect again instantly.
 
-
-
 ## How it works
 
-Under the hood Wireless ADB Manager uses two core libraries, [Zeroconf](https://github.com/novotnyllc/Zeroconf) and [AdvancedSharpAdbClient](https://github.com/SharpAdb/AdvancedSharpAdbClient). Zeroconf is used to browse Android's pairing and connect service announcements. AdvancedSharpAdbClient is used to easily perform the ADB commands for pairing, connecting and disconnecting to the devices. Each device discovered is shown in the Discovery list with the state / button-action calculated based on the service type it discovered under.
-
-
+Under the hood Wireless ADB Manager uses three core libraries, [Zeroconf](https://github.com/novotnyllc/Zeroconf), [QRCoder](https://github.com/codebude/QRCoder/) and [AdvancedSharpAdbClient](https://github.com/SharpAdb/AdvancedSharpAdbClient). Zeroconf is used to browse Android's pairing and connect service announcements. QRCoder is responsible to produce the QR Code from the data provided. AdvancedSharpAdbClient is used to easily perform the ADB commands for pairing, connecting and disconnecting to the devices. Each device discovered is shown in the Discovery list with the state / button-action calculated based on the service type it discovered under.
 
 ## Contact
 
 If you have any questions, feedback or a bug to report, feel free to open an issue 😊
 
-
-
 ## Credits
 
 - [SharpAdb/AdvancedSharpAdbClient: AdvancedSharpAdbClient is a .NET library that allows .NET, Mono and Unity applications to communicate with Android devices. It&#39;s improved version of SharpAdbClient.](https://github.com/SharpAdb/AdvancedSharpAdbClient)
+
+- [codebude/QRCoder: A pure C# Open Source QR Code implementation](https://github.com/codebude/QRCoder/)
 
 - [novotnyllc/Zeroconf: Bonjour support for .NET Core, .NET 4.6, Xamarin, and UWP](https://github.com/novotnyllc/Zeroconf)
 
