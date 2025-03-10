@@ -49,3 +49,13 @@ Under the hood Wireless ADB Manager uses two core libraries, [Zeroconf](https://
 ## Contact
 
 If you have any questions, feedback or a bug to report, feel free to open an issue 😊
+
+
+
+## Credits
+
+- [SharpAdb/AdvancedSharpAdbClient: AdvancedSharpAdbClient is a .NET library that allows .NET, Mono and Unity applications to communicate with Android devices. It&#39;s improved version of SharpAdbClient.](https://github.com/SharpAdb/AdvancedSharpAdbClient)
+
+- [novotnyllc/Zeroconf: Bonjour support for .NET Core, .NET 4.6, Xamarin, and UWP](https://github.com/novotnyllc/Zeroconf)
+
+- Inspired by: [eeriemyxi/lyto: Automatic wireless ADB connection using QR codes.](https://github.com/eeriemyxi/lyto)
