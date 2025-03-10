@@ -117,7 +117,14 @@
     </Page>
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Resources\WirelessADBManagerIcon.png" />
+    <Content Include="Resources\WirelessADBManagerIcon.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+    <Content Include="Resources\Screenshot.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
     <Resource Include="Resources\WirelessADBManager_Device_Icon.png" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
