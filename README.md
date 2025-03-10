@@ -14,6 +14,16 @@ Wireless ADB Manager is a Visual Studio extension that helps you pair and connec
 
 - Disconnect a Connected device
 
+
+
+## Get it here!
+
+✅ Visual Studio Marketplace: https://marketplace.visualstudio.com/items?itemName=dimitrios-iliopoulos.WirelessADBManager
+
+✅ Search it in the Visual Studio Extension Manager
+
+
+
 ## Usage
 
 The Wireless ADB Manager can be found under the Tools menu in Visual Studio. No USB is need to use this extension, everything is handled wirelessly. The PC and the Android devices must be in the same network. On the Android device head to Developer Settings (Developer Settings should be enabled) and then go to Wireless Debugging menu. After enabling Wireless Debugging follow the steps of Pair/Connect method of your choice.
