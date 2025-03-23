@@ -14,15 +14,15 @@ Wireless ADB Manager is a Visual Studio extension that helps you pair and connec
 
 - Disconnect a Connected device
 
-
-
 ## Get it here!
 
 ✅ Visual Studio Marketplace: https://marketplace.visualstudio.com/items?itemName=dimitrios-iliopoulos.WirelessADBManager
 
 ✅ Search it in the Visual Studio Extension Manager
 
+## Getting Started
 
+Usually no setup is required after installing the extension. Wireless ADB Manager will use a running ADB server instance without an issue. In case the ADB server is down/killed then Wireless ADB Manager will try to start it. In order to do so it needs to know the location of the adb.exe . By default it will try to find it in the PATH of the Environment Variables (both User and Machine) by identifying a path containing *"**android-sdk\platform-tools**"*. As a fallback in case the path is not identified in the Environment Variables it will try to locate it in the VS default installation path *"**C:\Program Files (x86)\Android\android-sdk\platform-tools\adb.exe**"*. In case you experience problems due to this you should define the correct adb.exe path to the Environment Variables PATH.
 
 ## Usage
 
