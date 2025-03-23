@@ -1,61 +1,43 @@
-﻿using WirelessADBManagerVSExtension.ViewModels;
+﻿using Microsoft.VisualStudio.Extensibility.UI;
+using System.ComponentModel;
+using WirelessADBManagerVSExtension.ViewModels;
 
 namespace WirelessADBManagerVSExtension.Models;
 
-public class DeviceInfo : BaseNotify
+public class DeviceInfo : NotifyPropertyChangedObject
 {
     private string _model;
     public string Model
     {
         get => _model;
-        set
-        {
-            _model = value;
-            OnPropertyChanged();
-        }
+        set => SetProperty(ref _model, value);
     }
 
     private string _ip;
     public string Ip
     {
         get => _ip;
-        set
-        {
-            _ip = value;
-            OnPropertyChanged();
-        }
+        set => SetProperty(ref _ip, value);
     }
 
     private bool _isConnected;
     public bool IsConnected
     {
         get => _isConnected;
-        set
-        {
-            _isConnected = value;
-            OnPropertyChanged();
-        }
+        set => SetProperty(ref _isConnected, value);
     }
 
     private bool _isPaired;
     public bool IsPaired
     {
         get => _isPaired;
-        set
-        {
-            _isPaired = value;
-            OnPropertyChanged();
-        }
+        set => SetProperty(ref _isPaired, value);
     }
 
     private DeviceStates _state;
     public DeviceStates State
     {
         get => _state;
-        set
-        {
-            _state = value;
-            OnPropertyChanged();
-        }
+        set => SetProperty(ref _state, value);
     }
 }

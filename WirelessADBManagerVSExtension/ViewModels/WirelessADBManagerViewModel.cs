@@ -1,6 +1,4 @@
-﻿using Microsoft.VisualStudio.Extensibility;
-using Microsoft.VisualStudio.Extensibility.Shell;
-using Microsoft.VisualStudio.PlatformUI;
+﻿using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
 using QRCoder;
 using QRCoder.Xaml;
@@ -69,7 +67,7 @@ public class WirelessAdbManagerViewModel : BaseNotify
 
     public WirelessAdbManagerViewModel()
     {
-        QrDataImageSource = CreateQrImageSourceFromData(_wirelessAdbManagerService.GetQrData());
+        QrDataImageSource = CreateQrImageSourceFromData(WirelessAdbManagerService.QrData);
 
         Task.Run(DiscoverDevicesAsync);
     }

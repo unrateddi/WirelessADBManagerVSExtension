@@ -9,7 +9,7 @@ internal static class ColorHelpers
 {
     internal static Color GetVsThemeColor(ThemeResourceKey themeResourceKey, Color returnFallbackColor)
     {
-        ThreadHelper.ThrowIfNotOnUIThread();
+        //ThreadHelper.ThrowIfNotOnUIThread();
         try
         {
             var color = VSColorTheme.GetThemedColor(themeResourceKey);

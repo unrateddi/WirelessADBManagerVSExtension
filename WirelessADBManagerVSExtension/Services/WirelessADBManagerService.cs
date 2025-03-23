@@ -1,20 +1,18 @@
 ﻿using AdvancedSharpAdbClient.Models;
-using AdvancedSharpAdbClient;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Net;
-using System.Security.Cryptography;
 using Zeroconf;
 using WirelessADBManagerVSExtension.Models;
 using System.Runtime.CompilerServices;
+using WirelessADBManagerVSExtension.Utils;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Linq;
+using System;
 
 namespace WirelessADBManagerVSExtension.Services;
 
-public class WirelessAdbManagerService
+public class WirelessAdbManagerService()
 {
     #region Constants
 
@@ -24,24 +22,59 @@ public class WirelessAdbManagerService
     const string ModelPlaceholder = "No Model Info";
     const int ServiceBrowseCooldownInMilliseconds = 500;
     const int PairingOverrideThresholdInSeconds = 3;
+    const char IpPortSeparator = ':';
 
     #endregion
 
     #region Statics
 
     static readonly List<string> s_serviceTypes = [ConnectService, PairingService];
-    static readonly char[] s_chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890".ToCharArray();
-    static readonly string s_pairingKey = $"ADB_WIFI_{GetUniqueKey(KeySize)}";
-    static readonly string s_password = GetUniqueKey(KeySize);
+    static readonly string s_pairingKey = $"ADB_WIFI_{KeyGenerator.GetUniqueKey(KeySize)}";
+    static readonly string s_password = KeyGenerator.GetUniqueKey(KeySize);
+    internal static readonly string QrData = $"WIFI:T:ADB;S:{s_pairingKey};P:{s_password};;";
 
     #endregion
 
+    readonly AdbService _adbService = new();
     readonly List<DiscoveredDevice> _discoveredDevices = [];
-
-    internal string GetQrData() => $"WIFI:T:ADB;S:{s_pairingKey};P:{s_password};;";
 
     internal async IAsyncEnumerable<DeviceInfo> DiscoverDevicesAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        var adbDevices = await _adbService.AdbListDevicesAsync(cancellationToken);
+
+        foreach (var device in adbDevices)
+        {
+            string ip = string.Empty;
+            int port = 0;
+
+            try
+            {
+                (ip, port) = ParseIpAndPortFromSerial(device.Serial);
+            }
+            catch
+            {
+                continue;
+            }
+
+            var cachedDiscoveredDevice = new DiscoveredDevice(ip)
+            {
+                ConnectPort = port,
+                IsPaired = true,
+                IsConnected = device.State == DeviceState.Online
+            };
+
+            _discoveredDevices.Add(cachedDiscoveredDevice);
+
+            yield return new()
+            {
+                Ip = cachedDiscoveredDevice.Ip,
+                IsPaired = cachedDiscoveredDevice.IsPaired,
+                IsConnected = cachedDiscoveredDevice.IsConnected,
+                Model = device.Model,
+                State = cachedDiscoveredDevice.IsConnected ? DeviceStates.Connected : DeviceStates.Disconnected
+            };
+        }
+
         var discoveredServices = DiscoverServicesAsync(cancellationToken);
 
         await foreach (var discoveredService in discoveredServices.WithCancellation(cancellationToken))
@@ -96,7 +129,7 @@ public class WirelessAdbManagerService
                     continue;
                 }
 
-                var pairedSuccessfully = await AdbPairAsync(cachedDiscoveredDevice.Ip, cachedDiscoveredDevice.PairingPort, s_password, cancellationToken);
+                var pairedSuccessfully = await _adbService.AdbPairAsync(cachedDiscoveredDevice.Ip, cachedDiscoveredDevice.PairingPort, s_password, cancellationToken);
 
                 if (!pairedSuccessfully)
                 {
@@ -114,7 +147,7 @@ public class WirelessAdbManagerService
                     State = DeviceStates.Connecting
                 };
 
-                var (Success, ConnectedDevice) = await AdbConnectAsync(cachedDiscoveredDevice.Ip, cachedDiscoveredDevice.ConnectPort, cancellationToken);
+                var (Success, ConnectedDevice) = await _adbService.AdbConnectAsync(cachedDiscoveredDevice.Ip, cachedDiscoveredDevice.ConnectPort, cancellationToken);
 
                 if (Success)
                 {
@@ -224,7 +257,7 @@ public class WirelessAdbManagerService
     {
         var cachedDiscoveredDevice = _discoveredDevices.FirstOrDefault(d => d.Ip == deviceInfo.Ip);
 
-        var (Success, ConnectedDevice) = await AdbConnectAsync(cachedDiscoveredDevice.Ip, cachedDiscoveredDevice.ConnectPort, cancellationToken);
+        var (Success, ConnectedDevice) = await _adbService.AdbConnectAsync(cachedDiscoveredDevice.Ip, cachedDiscoveredDevice.ConnectPort, cancellationToken);
 
         cachedDiscoveredDevice.IsConnected = Success;
 
@@ -242,7 +275,7 @@ public class WirelessAdbManagerService
     {
         var cachedDiscoveredDevice = _discoveredDevices.FirstOrDefault(d => d.Ip == deviceInfo.Ip);
 
-        var disconnectedSuccessfully = await AdbDisconnectAsync(cachedDiscoveredDevice.Ip, cachedDiscoveredDevice.ConnectPort, cancellationToken);
+        var disconnectedSuccessfully = await _adbService.AdbDisconnectAsync(cachedDiscoveredDevice.Ip, cachedDiscoveredDevice.ConnectPort, cancellationToken);
 
         cachedDiscoveredDevice.IsConnected = !disconnectedSuccessfully;
 
@@ -260,7 +293,7 @@ public class WirelessAdbManagerService
     {
         var cachedDiscoveredDevice = _discoveredDevices.FirstOrDefault(d => d.Ip == deviceInfo.Ip);
 
-        var pairedSuccessfully = await AdbPairAsync(cachedDiscoveredDevice.Ip, cachedDiscoveredDevice.PairingPort, password, cancellationToken);
+        var pairedSuccessfully = await _adbService.AdbPairAsync(cachedDiscoveredDevice.Ip, cachedDiscoveredDevice.PairingPort, password, cancellationToken);
 
         if (!pairedSuccessfully)
         {
@@ -274,7 +307,7 @@ public class WirelessAdbManagerService
             };
         }
 
-        var (Success, ConnectedDevice) = await AdbConnectAsync(cachedDiscoveredDevice.Ip, cachedDiscoveredDevice.ConnectPort, cancellationToken);
+        var (Success, ConnectedDevice) = await _adbService.AdbConnectAsync(cachedDiscoveredDevice.Ip, cachedDiscoveredDevice.ConnectPort, cancellationToken);
 
         return new DeviceInfo
         {
@@ -312,103 +345,19 @@ public class WirelessAdbManagerService
         }
     }
 
-    #region ADB
-
-    private static async Task<(bool Success, DeviceData ConnectedDevice)> AdbConnectAsync(string ip, int port, CancellationToken cancellationToken)
-    {
-        await EnsureAdbServerIsRunningAsync(cancellationToken);
-
-        var adbClient = new AdbClient();
-
-        try
-        {
-            await adbClient.ConnectAsync(ip, port, cancellationToken);
-            var devices = await adbClient.GetDevicesAsync();
-            var device = devices.FirstOrDefault(d => d.Serial == $"{ip}:{port}");
-
-            if (device == default(DeviceData))
-            {
-                return (false, new DeviceData());
-            }
-
-            return (true, device);
-        }
-        catch
-        {
-            return (false, default(DeviceData));
-        }
-    }
-
-    private static async Task<bool> AdbDisconnectAsync(string ip, int port, CancellationToken cancellationToken)
-    {
-        await EnsureAdbServerIsRunningAsync(cancellationToken);
-
-        var adbClient = new AdbClient();
-
-        try
-        {
-            var disconnectResult = await adbClient.DisconnectAsync(ip, port, cancellationToken);
-
-            return !disconnectResult.StartsWith("error");
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static async Task<bool> AdbPairAsync(string ip, int port, string password, CancellationToken cancellationToken)
-    {
-        await EnsureAdbServerIsRunningAsync(cancellationToken);
-
-        var adbClient = new AdbClient();
-
-        try
-        {
-            var pairingResult = await adbClient.PairAsync(ip, port, password, cancellationToken);
-
-            return !pairingResult.StartsWith("Failed");
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static async Task EnsureAdbServerIsRunningAsync(CancellationToken cancellationToken)
-    {
-        if (!AdbServer.Instance.GetStatus().IsRunning)
-        {
-            AdbServer server = new();
-            StartServerResult result = await server.StartServerAsync("adb", false, cancellationToken);
-            if (result != StartServerResult.Started)
-            {
-                Console.WriteLine("Can't start adb server");
-            }
-        }
-    }
-
-    #endregion
-
     #region Helpers
 
-    private static string GetUniqueKey(int size)
+    private static (string Ip, int Port) ParseIpAndPortFromSerial(string serial)
     {
-        byte[] data = new byte[4 * size];
-        using (var crypto = RandomNumberGenerator.Create())
-        {
-            crypto.GetBytes(data);
-        }
-        StringBuilder result = new(size);
-        for (int i = 0; i < size; i++)
-        {
-            var rnd = BitConverter.ToUInt32(data, i * 4);
-            var idx = rnd % s_chars.Length;
+        if (string.IsNullOrWhiteSpace(serial) || !serial.Contains(IpPortSeparator))
+            throw new ArgumentException("Input parameter is not in the correct format", nameof(serial));
 
-            result.Append(s_chars[idx]);
-        }
+        var ipAndPortSplitted = serial.Split(IpPortSeparator);
 
-        return result.ToString();
+        var ip = ipAndPortSplitted[0];
+        var port = int.Parse(ipAndPortSplitted[1]);
+
+        return (ip, port);
     }
 
     #endregion

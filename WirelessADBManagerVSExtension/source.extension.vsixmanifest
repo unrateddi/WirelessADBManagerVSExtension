@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
     <Metadata>
-        <Identity Id="WirelessADBManagerVSExtension.815be562-f02e-41a6-afd5-66f28aa2b851" Version="1.0" Language="en-US" Publisher="Dimitrios Iliopoulos" />
+        <Identity Id="WirelessADBManagerVSExtension.815be562-f02e-41a6-afd5-66f28aa2b851" Version="1.1" Language="en-US" Publisher="Dimitrios Iliopoulos" />
         <DisplayName>Wireless ADB Manager</DisplayName>
         <Description xml:space="preserve">Enables quick pair and connect to Android devices via QR-Code or Pairing-Code for Wireless Debugging.</Description>
+        <License>LICENSE.txt</License>
         <Icon>Resources\WirelessADBManagerIcon.png</Icon>
         <PreviewImage>Resources\Screenshot.png</PreviewImage>
         <Preview>true</Preview>

@@ -28,10 +28,12 @@ namespace WirelessADBManagerVSExtension
     [ProvideMenuResource("Menus.ctmenu", 1)]
     public sealed class WirelessADBManagerVSExtensionPackage : AsyncPackage
     {
-         /// <summary>
+        /// <summary>
         /// WirelessADBManagerVSExtensionPackage GUID string.
         /// </summary>
         public const string PackageGuidString = "767fb2ec-cf1f-4e88-844a-ff223f473a53";
+
+        internal static WirelessADBManagerVSExtensionPackage Instance { get; private set; }
 
         #region Package Members
 
@@ -48,6 +50,8 @@ namespace WirelessADBManagerVSExtension
             // Do any initialization that requires the UI thread after switching to the UI thread.
             await this.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
             await OpenWirelessADBManagerCommand.InitializeAsync(this);
+
+            Instance = this;
         }
 
         #endregion
