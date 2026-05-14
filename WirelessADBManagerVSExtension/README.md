@@ -4,7 +4,16 @@ Wireless ADB Manager is a Visual Studio extension that helps you pair, connect a
 
 > **v2.0** is a full rewrite built on the new [VisualStudio.Extensibility](https://learn.microsoft.com/en-us/visualstudio/extensibility/visualstudio.extensibility) out-of-process model, targeting Visual Studio 2022 17.14 and later. It brings USB-to-wireless switching, automatic device model detection, wireless ADB state management, and a unified device list alongside all the original wireless pairing and connection features.
 
-> ⚠️ **Upgrading from v1?** Due to the architectural change to the new VS Extensibility model, v2 is registered as a separate extension in Visual Studio. After updating, you may see two entries for Wireless ADB Manager under **Extensions → Manage Extensions**. You can safely uninstall the older v1 entry — it will no longer receive updates.
+> ⚠️ **Upgrading from v1? — Duplicate extension cleanup**
+> 
+> Due to the architectural change to the new VS Extensibility model, v2 is registered under a different identity in Visual Studio. If you updated from v1 and now see two "Wireless ADB Manager" entries, follow these steps to clean up:
+> 
+> 1. Open **Extensions → Manage Extensions**
+> 2. Find the **new v2** entry and click **Uninstall** (VS will queue it for removal after restart — do not restart yet)
+> 3. Find the **old v1** entry — if there is a pending auto-update shown next to it, click **Cancel** to stop it re-installing v2
+> 4. Click **Uninstall** on the v1 entry as well
+> 5. Click **Modify / Close** and **restart Visual Studio** — both entries will be removed
+> 6. After restart, reinstall the extension from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=dimitrios-iliopoulos.WirelessADBManager) or via **Extensions → Manage Extensions → Online**
 
 ## What you can do
 

@@ -3,7 +3,7 @@
     <TargetFramework>net8.0-windows8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>2.0.0.1</Version>
+    <Version>2.0.0.2</Version>
   </PropertyGroup>
   <ItemGroup>
     <None Remove="Resources\WirelessADBManagerIcon.png" />
