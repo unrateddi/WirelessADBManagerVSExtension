@@ -1,146 +1,91 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <MinimumVisualStudioVersion>17.0</MinimumVisualStudioVersion>
-    <VSToolsPath Condition="'$(VSToolsPath)' == ''">$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)</VSToolsPath>
-    <LangVersion>latest</LangVersion>
-  </PropertyGroup>
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
-  <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <SchemaVersion>2.0</SchemaVersion>
-    <ProjectTypeGuids>{82b43b9b-a64c-4715-b499-d71e9ca2bd60};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
-    <ProjectGuid>{07332515-3A41-4847-87D7-2FB3FCC18C14}</ProjectGuid>
-    <OutputType>Library</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>WirelessADBManagerVSExtension</RootNamespace>
-    <AssemblyName>WirelessADBManagerVSExtension</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
-    <GeneratePkgDefFile>true</GeneratePkgDefFile>
-    <UseCodebase>true</UseCodebase>
-    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
-    <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
-    <IncludeDebugSymbolsInLocalVSIXDeployment>false</IncludeDebugSymbolsInLocalVSIXDeployment>
-    <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
-    <CopyOutputSymbolsToOutputDirectory>true</CopyOutputSymbolsToOutputDirectory>
-    <StartAction>Program</StartAction>
-    <StartProgram Condition="'$(DevEnvDir)' != ''">$(DevEnvDir)devenv.exe</StartProgram>
-    <StartArguments>/rootsuffix Exp</StartArguments>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
+    <TargetFramework>net8.0-windows8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Version>2.0</Version>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Converters\DeviceStateToButtonTextConverter.cs" />
-    <Compile Include="Helpers\ColorHelpers.cs" />
-    <Compile Include="Models\DeviceInfo.cs" />
-    <Compile Include="Models\DiscoveredDevice.cs" />
-    <Compile Include="Models\DiscoveredService.cs" />
-    <Compile Include="Models\Enums.cs" />
-    <Compile Include="OpenWirelessADBManagerCommand.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Services\AdbService.cs" />
-    <Compile Include="Services\WirelessADBManagerService.cs" />
-    <Compile Include="Utils\KeyGenerator.cs" />
-    <Compile Include="Utils\SettingsStoreConstants.cs" />
-    <Compile Include="ViewModels\BaseNotify.cs" />
-    <Compile Include="ViewModels\WirelessADBManagerViewModel.cs" />
-    <Compile Include="Views\ManualPairingCodePromptView.xaml.cs">
-      <DependentUpon>ManualPairingCodePromptView.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="Views\WirelessADBManagerView.xaml.cs">
-      <DependentUpon>WirelessADBManagerView.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="WirelessADBManagerVSExtensionPackage.cs" />
+    <None Remove="Resources\WirelessADBManagerIcon.png" />
+    <None Remove="Resources\WirelessADBManager_Device_Icon.png" />
+    <None Remove="Resources\WirelessADBManager_USB_Device_Icon.png" />
+    <None Remove="WirelessADBManagerToolWindowContent.xaml" />
   </ItemGroup>
+
   <ItemGroup>
-    <None Include="source.extension.vsixmanifest">
-      <SubType>Designer</SubType>
+    <PackageReference Include="AdvancedSharpAdbClient" Version="3.6.16" />
+    <PackageReference Include="Microsoft.VisualStudio.Extensibility.Sdk" Version="17.14.40608" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.VisualStudio.Extensibility.Build" Version="17.14.40608" PrivateAssets="all" />
+    <PackageReference Include="Makaretu.Dns.Multicast" Version="0.27.0" />
+    <PackageReference Include="QRCoder.Xaml" Version="1.8.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Views\ManualPairingCodePromptView.xaml">
+      <Generator>MSBuild:Compile</Generator>
     </None>
+    <EmbeddedResource Update="WirelessADBManagerToolWindowContent.xaml" LogicalName="WirelessADBManagerVSExtension.WirelessADBManagerToolWindowContent.xaml" />
+    <Page Remove="WirelessADBManagerToolWindowContent.xaml" />
   </ItemGroup>
+
   <ItemGroup>
-    <Reference Include="Microsoft.CSharp" />
-    <Reference Include="PresentationCore" />
-    <Reference Include="PresentationFramework" />
-    <Reference Include="System" />
-    <Reference Include="System.Data" />
-    <Reference Include="System.Design" />
-    <Reference Include="System.Drawing" />
-    <Reference Include="System.Windows.Forms" />
-    <Reference Include="System.Xaml" />
-    <Reference Include="System.Xml" />
-    <Reference Include="WindowsBase" />
+    <Content Include="Resources\WirelessADBManagerIcon.png" />
+    <Content Include="Resources\WirelessADBManager_Device_Icon.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\WirelessADBManager_USB_Device_Icon.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
+
   <ItemGroup>
-    <PackageReference Include="AdvancedSharpAdbClient">
-      <Version>3.4.14</Version>
-    </PackageReference>
-    <PackageReference Include="Microsoft.VisualStudio.Extensibility">
-      <Version>17.13.2060</Version>
-    </PackageReference>
-    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.13.40008" ExcludeAssets="runtime" NoWarn="NU1604">
-      <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.13.2126" NoWarn="NU1604" />
-    <PackageReference Include="QRCoder.Xaml">
-      <Version>1.6.0</Version>
-    </PackageReference>
-    <PackageReference Include="Zeroconf">
-      <Version>3.7.16</Version>
-    </PackageReference>
-  </ItemGroup>
-  <ItemGroup>
-    <VSCTCompile Include="WirelessADBManagerVSExtensionPackage.vsct">
-      <ResourceName>Menus.ctmenu</ResourceName>
-    </VSCTCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <Page Include="Views\ManualPairingCodePromptView.xaml">
-      <SubType>Designer</SubType>
+    <EmbeddedResource Include="WirelessADBManagerToolWindowContent.xaml">
       <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="Views\WirelessADBManagerView.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
+    </EmbeddedResource>
   </ItemGroup>
-  <ItemGroup>
-    <Content Include="LICENSE.txt">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      <IncludeInVSIX>true</IncludeInVSIX>
-    </Content>
-    <Content Include="Resources\WirelessADBManagerIcon.png">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      <IncludeInVSIX>true</IncludeInVSIX>
-    </Content>
-    <Content Include="Resources\Screenshot.png">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      <IncludeInVSIX>true</IncludeInVSIX>
-    </Content>
-    <Resource Include="Resources\WirelessADBManager_Device_Icon.png" />
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <Import Project="$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets" Condition="'$(VSToolsPath)' != ''" />
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it.
-       Other similar extension points exist, see Microsoft.Common.targets.
-  <Target Name="BeforeBuild">
-  </Target>
-  <Target Name="AfterBuild">
-  </Target>
+
+  <!--
+    The VS Extensibility SDK source generator only emits Microsoft.VisualStudio.Community
+    installation targets. This inline task clones those entries for Professional and Enterprise
+    so the VSIX is accepted by all three SKUs.
   -->
+  <UsingTask TaskName="AddVsInstallationTargets"
+             TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <ManifestPath ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.Xml.Linq" />
+      <Using Namespace="System.Linq" />
+      <Code Type="Fragment" Language="cs">
+        <![CDATA[
+          XNamespace ns = "http://schemas.microsoft.com/developer/vsx-schema/2011";
+          var doc = XDocument.Load(ManifestPath);
+          var installation = doc.Root.Element(ns + "Installation");
+          var existing = installation.Elements(ns + "InstallationTarget").ToList();
+          var existingIds = existing.Select(e => (string)e.Attribute("Id")).Distinct().ToList();
+          foreach (var id in new[] { "Microsoft.VisualStudio.Pro", "Microsoft.VisualStudio.Enterprise" })
+          {
+              if (!existingIds.Contains(id))
+              {
+                  foreach (var template in existing)
+                  {
+                      var clone = new XElement(template);
+                      clone.SetAttributeValue("Id", id);
+                      installation.Add(clone);
+                  }
+              }
+          }
+          doc.Save(ManifestPath);
+        ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="_AddVsEditionsToManifest" AfterTargets="CoreCompile"
+          Condition="Exists('$(IntermediateOutputPath)extension.vsixmanifest')">
+    <AddVsInstallationTargets ManifestPath="$(IntermediateOutputPath)extension.vsixmanifest" />
+  </Target>
+
 </Project>

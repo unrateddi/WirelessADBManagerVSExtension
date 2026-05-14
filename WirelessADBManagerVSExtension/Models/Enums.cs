@@ -1,17 +1,18 @@
 ﻿namespace WirelessADBManagerVSExtension.Models;
 
-public enum ServiceMode
-{
-    Pair,
-    Pairing,
-    Connect
-}
-
 public enum DeviceStates
 {
     ManualPair,
     Pairing,
     Connecting,
     Connected,
-    Disconnected
+    Disconnected,
+    /// <summary>USB-connected device that can be switched to TCP/IP wireless mode.</summary>
+    UsbTcpip
+}
+
+public enum ConnectionType
+{
+    Wireless,
+    Usb
 }

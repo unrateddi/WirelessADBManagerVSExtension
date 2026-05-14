@@ -1,0 +1,5 @@
+{
+  "WirelessADBManagerVSExtension.OpenWirelessADBManagerCommand.DisplayName": "Wireless ADB Manager",
+  "WirelessADBManagerVSExtension.SettingDefinitions.Category": "Wireless ADB Manager",
+  "WirelessADBManagerVSExtension.SettingDefinitions.ADBPath": "ADB Path"
+}
