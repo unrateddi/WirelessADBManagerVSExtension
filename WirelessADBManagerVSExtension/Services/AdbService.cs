@@ -13,8 +13,36 @@ using WirelessADBManagerVSExtension.Settings;
 
 namespace WirelessADBManagerVSExtension.Services;
 
+/// <summary>Coarse classification of why an ADB pair/connect operation failed.</summary>
+public enum AdbFailureKind
+{
+    None,
+    /// <summary>The device never responded — e.g. blocked by a firewall, AP/client isolation, or otherwise unreachable.</summary>
+    NetworkUnreachable,
+    /// <summary>The device responded but rejected the operation (e.g. wrong pairing code).</summary>
+    Rejected,
+    Unknown
+}
+
+public readonly record struct AdbPairResult(bool Success, AdbFailureKind FailureKind, string? Message);
+
+public readonly record struct AdbConnectResult(bool Success, DeviceData? ConnectedDevice, AdbFailureKind FailureKind, string? Message);
+
 public partial class AdbService(IAdbClient _adbClient, WirelessADBManagerCategoryObserver _settingsObserver, VisualStudioExtensibility _extensibility)
 {
+    // adb's own "pair"/"connect" responses report unreachable-host failures as plain text
+    // (e.g. "Failed to initiate client for 192.168.1.5:37123: Connection timed out") because the
+    // actual socket connection happens inside the adb server process, not in this .NET client.
+    private static readonly string[] NetworkFailureKeywords =
+    [
+        "initiate", "timed out", "timeout", "unreachable", "refused",
+        "no route", "network is", "unable to connect", "connection reset"
+    ];
+
+    private static AdbFailureKind ClassifyResponseFailure(string message) =>
+        NetworkFailureKeywords.Any(keyword => message.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+            ? AdbFailureKind.NetworkUnreachable
+            : AdbFailureKind.Rejected;
     const string DefaultAdbPath = "C:\\Program Files (x86)\\Android\\android-sdk\\platform-tools\\adb.exe";
     const string AdbPathLocator = "android-sdk\\platform-tools";
     const string AdbExecutableName = "adb.exe";
@@ -62,26 +90,39 @@ public partial class AdbService(IAdbClient _adbClient, WirelessADBManagerCategor
         await _extensibility.Shell().ShowPromptAsync("ADB path is not set. Please configure it in the extension settings.", options, cancellationToken);
     }
 
-    internal async Task<(bool Success, DeviceData? ConnectedDevice)> AdbConnectAsync(string ip, int port, CancellationToken cancellationToken)
+    internal async Task<AdbConnectResult> AdbConnectAsync(string ip, int port, CancellationToken cancellationToken)
     {
         await EnsureAdbServerIsRunningAsync(cancellationToken);
 
         try
         {
-            await _adbClient.ConnectAsync(ip, port, cancellationToken);
+            var connectResponse = await _adbClient.ConnectAsync(ip, port, cancellationToken);
+
+            if (connectResponse.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
+                connectResponse.Contains("cannot", StringComparison.OrdinalIgnoreCase))
+            {
+                return new AdbConnectResult(false, null, ClassifyResponseFailure(connectResponse), connectResponse);
+            }
+
             var devices = await _adbClient.GetDevicesAsync(cancellationToken);
             var device = devices.FirstOrDefault(d => d.Serial == $"{ip}:{port}");
 
-            if (device == default)
-            {
-                return (false, new DeviceData());
-            }
-
-            return (true, device);
+            return device == default
+                ? new AdbConnectResult(false, null, AdbFailureKind.Unknown, "Device did not appear in the ADB device list after connecting.")
+                : new AdbConnectResult(true, device, AdbFailureKind.None, null);
         }
-        catch
+        catch (SocketException ex)
         {
-            return (false, default(DeviceData));
+            return new AdbConnectResult(false, null, AdbFailureKind.NetworkUnreachable, ex.Message);
+        }
+        catch (OperationCanceledException)
+        {
+            // Let the caller distinguish its own operation timeout from an external cancellation.
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return new AdbConnectResult(false, null, AdbFailureKind.Unknown, ex.Message);
         }
     }
 
@@ -137,7 +178,7 @@ public partial class AdbService(IAdbClient _adbClient, WirelessADBManagerCategor
         }
     }
 
-    internal async Task<bool> AdbPairAsync(string ip, int port, string password, CancellationToken cancellationToken)
+    internal async Task<AdbPairResult> AdbPairAsync(string ip, int port, string password, CancellationToken cancellationToken)
     {
         await EnsureAdbServerIsRunningAsync(cancellationToken);
 
@@ -145,11 +186,23 @@ public partial class AdbService(IAdbClient _adbClient, WirelessADBManagerCategor
         {
             var pairingResult = await _adbClient.PairAsync(ip, port, password, cancellationToken);
 
-            return !pairingResult.StartsWith("Failed");
+            // A "Failed" response can mean either a real rejection (e.g. wrong code) or an
+            // unreachable device — the wording tells them apart (see ClassifyResponseFailure).
+            return pairingResult.StartsWith("Failed", StringComparison.OrdinalIgnoreCase)
+                ? new AdbPairResult(false, ClassifyResponseFailure(pairingResult), pairingResult)
+                : new AdbPairResult(true, AdbFailureKind.None, null);
         }
-        catch
+        catch (SocketException ex)
         {
-            return false;
+            return new AdbPairResult(false, AdbFailureKind.NetworkUnreachable, ex.Message);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return new AdbPairResult(false, AdbFailureKind.Unknown, ex.Message);
         }
     }
 
@@ -362,7 +415,8 @@ public partial class AdbService(IAdbClient _adbClient, WirelessADBManagerCategor
             // Small delay — the device ADB daemon takes ~1s to restart.
             await Task.Delay(1500, cancellationToken);
 
-            return await AdbConnectAsync(wifiIp, port, cancellationToken);
+            var result = await AdbConnectAsync(wifiIp, port, cancellationToken);
+            return (result.Success, result.ConnectedDevice);
         }
         catch (Exception ex)
         {

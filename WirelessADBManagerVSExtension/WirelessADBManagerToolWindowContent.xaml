@@ -17,7 +17,6 @@
 			<Setter Property="Foreground" Value="{DynamicResource {x:Static styles:VsBrushes.WindowTextKey}}" />
 		</Style>
 		<Style BasedOn="{StaticResource {x:Static styles:VsResourceKeys.ThemedDialogListViewStyleKey}}" TargetType="ListView" />
-		<BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
 	</DataTemplate.Resources>
 
 	<Grid Margin="50">
@@ -65,9 +64,12 @@
 								<ColumnDefinition Width="2*" />
 								<ColumnDefinition Width="2*" />
 								<ColumnDefinition Width="2*" />
-								<ColumnDefinition Width="Auto" />
 							</Grid.ColumnDefinitions>
+							<Grid.RowDefinitions>
+								<RowDefinition Height="Auto" />
+							</Grid.RowDefinitions>
 							<Image
+								Grid.Row="0"
 								Grid.Column="0"
 								Width="40"
 								Height="40"
@@ -76,31 +78,26 @@
 								Source="{Binding DeviceIconUri}"
 								Stretch="Fill" />
 							<Label
+								Grid.Row="0"
 								Grid.Column="1"
 								HorizontalAlignment="Center"
 								VerticalAlignment="Center"
 								Content="{Binding Model}" />
 							<Label
+								Grid.Row="0"
 								Grid.Column="2"
 								HorizontalAlignment="Center"
 								VerticalAlignment="Center"
 								Content="{Binding Ip}" />
 							<Button
+								Grid.Row="0"
 								Grid.Column="3"
 								Padding="10"
 								VerticalAlignment="Center"
 								Command="{Binding ActionCommand}"
 								CommandParameter="{Binding .}"
-								Content="{Binding StateText}" />
-							<Button
-								Grid.Column="4"
-								Margin="6,0,0,0"
-								Padding="10"
-								VerticalAlignment="Center"
-								Command="{Binding TurnOffWirelessCommand}"
-								CommandParameter="{Binding .}"
-								Content="Turn off wireless ADB"
-								Visibility="{Binding ShowTurnOffWirelessButton, Converter={StaticResource BoolToVisibilityConverter}}" />
+								Content="{Binding StateText}"
+								IsEnabled="{Binding IsActionEnabled}" />
 						</Grid>
 					</DataTemplate>
 				</ListView.ItemTemplate>
