@@ -1,3 +1,5 @@
 <Solution>
-  <Project Path="WirelessADBManagerVSExtension/WirelessADBManagerVSExtension.csproj" />
+  <Project Path="WirelessADBManagerVSExtension/WirelessADBManagerVSExtension.csproj">
+    <Deploy Solution="Debug|*" />
+  </Project>
 </Solution>

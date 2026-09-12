@@ -89,8 +89,14 @@ public class DeviceInfo : NotifyPropertyChangedObject
                 DeviceStates.Connected => "Disconnect",
                 DeviceStates.Disconnected => "Connect",
                 DeviceStates.UsbTcpip => _isWirelessAdbEnabled ? "Turn off wireless ADB" : "Switch to Wireless",
+                DeviceStates.ConnectionFailed => "Connect",
+                DeviceStates.NotPaired => "Not Paired",
                 _ => "Unknown"
             };
+
+            // No pairing offer is currently available for this device — the action button
+            // would either do nothing useful or fail, so disable it until pairing is offered.
+            IsActionEnabled = value != DeviceStates.NotPaired;
 
             DeviceIconUri = value == DeviceStates.UsbTcpip
                 ? DeviceIconUris.Usb
@@ -105,6 +111,16 @@ public class DeviceInfo : NotifyPropertyChangedObject
     {
         get => _stateText;
         set => SetProperty(ref _stateText, value);
+    }
+
+    private bool _isActionEnabled = true;
+
+    /// <summary>False when the action button has nothing valid to do (e.g. no pairing offer available yet).</summary>
+    [DataMember]
+    public bool IsActionEnabled
+    {
+        get => _isActionEnabled;
+        set => SetProperty(ref _isActionEnabled, value);
     }
 
     private string _deviceIconUri = DeviceIconUris.Wireless;
@@ -127,5 +143,15 @@ public class DeviceInfo : NotifyPropertyChangedObject
     {
         get => _isWirelessAdbEnabled;
         set => SetProperty(ref _isWirelessAdbEnabled, value);
+    }
+
+    private string? _failureReason;
+
+    /// <summary>Populated when pairing or connecting fails so the tool window can show a diagnostic dialog.</summary>
+    [DataMember]
+    public string? FailureReason
+    {
+        get => _failureReason;
+        set => SetProperty(ref _failureReason, value);
     }
 }

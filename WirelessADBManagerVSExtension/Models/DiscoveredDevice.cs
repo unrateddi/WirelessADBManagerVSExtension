@@ -18,8 +18,10 @@ internal class DiscoveredDevice(string ip)
     internal int ConnectPort { get; set; }
     internal string? PairingServiceId { get; set; }
     internal string? ConnectServiceId { get; set; }
-    internal DateTime LastPairingAnnouncementTime { get; set; }
-    internal DateTime LastManualPairAnnouncementTime { get; set; }
+    /// <summary>UTC time the QR-code pairing service was last (re-)announced for this device.</summary>
+    internal DateTime LastQrPairingSeenUtc { get; set; }
+    /// <summary>UTC time the manual-code pairing service was last (re-)announced for this device.</summary>
+    internal DateTime LastManualPairingSeenUtc { get; set; }
     internal bool IsPaired { get; set; }
     internal bool IsConnected { get; set; }
 }

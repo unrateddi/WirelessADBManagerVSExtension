@@ -18,6 +18,7 @@ public sealed class WirelessADBManagerToolWindowData : NotifyPropertyChangedObje
     private readonly VisualStudioExtensibility _extensibility;
 
     private readonly CancellationTokenSource _cancellationTokenSource = new();
+    private readonly HashSet<string> _shownFailureMessages = new(StringComparer.Ordinal);
 
     private ObservableList<DeviceInfo> _devices = [];
 
@@ -70,6 +71,8 @@ public sealed class WirelessADBManagerToolWindowData : NotifyPropertyChangedObje
                 cachedDeviceInfo.IsConnected = deviceInfo.IsConnected;
                 cachedDeviceInfo.IsPaired = deviceInfo.IsPaired;
                 cachedDeviceInfo.State = deviceInfo.State;
+                cachedDeviceInfo.FailureReason = deviceInfo.FailureReason;
+                ShowFailureDialogIfNeeded(deviceInfo);
                 // AdbSerial may arrive later (e.g. after auto-connect resolves) — only update
                 // when the incoming value is non-null so we never overwrite a known serial.
                 if (deviceInfo.AdbSerial is not null)
@@ -80,6 +83,44 @@ public sealed class WirelessADBManagerToolWindowData : NotifyPropertyChangedObje
             deviceInfo.ActionCommand = DeviceActionCommand;
 
             Devices.Add(deviceInfo);
+            ShowFailureDialogIfNeeded(deviceInfo);
+        }
+    }
+
+    private void ShowFailureDialogIfNeeded(DeviceInfo deviceInfo)
+    {
+        if (string.IsNullOrWhiteSpace(deviceInfo.FailureReason))
+            return;
+
+        var messageKey = $"{deviceInfo.Ip}|{deviceInfo.FailureReason}";
+        if (!_shownFailureMessages.Add(messageKey))
+            return;
+
+        _ = ShowFailureDialogAsync(deviceInfo);
+    }
+
+    private async Task ShowFailureDialogAsync(DeviceInfo deviceInfo)
+    {
+        try
+        {
+            var deviceIdentity = string.IsNullOrWhiteSpace(deviceInfo.Model) || deviceInfo.Model == "No Model Info"
+                ? deviceInfo.Ip
+                : $"{deviceInfo.Model} ({deviceInfo.Ip})";
+            var operation = deviceInfo.State == DeviceStates.ConnectionFailed ? "Connection" : "Pairing";
+
+            var options = new Microsoft.VisualStudio.Extensibility.Shell.PromptOptions<bool>
+            {
+                Title = $"Wireless ADB {operation} Failed"
+            };
+            options.Choices.Add(new Microsoft.VisualStudio.Extensibility.Shell.ChoiceDescription("OK"), true);
+
+            await _extensibility.Shell().ShowPromptAsync(
+                $"{operation} failed for {deviceIdentity}.\n\n{deviceInfo.FailureReason}",
+                options,
+                _cancellationTokenSource.Token);
+        }
+        catch (OperationCanceledException)
+        {
         }
     }
 
@@ -176,6 +217,7 @@ public sealed class WirelessADBManagerToolWindowData : NotifyPropertyChangedObje
         deviceInfo.IsConnected = connectedDeviceInfo.IsConnected;
         deviceInfo.IsPaired = connectedDeviceInfo.IsPaired;
         deviceInfo.State = connectedDeviceInfo.State;
+        deviceInfo.FailureReason = connectedDeviceInfo.FailureReason;
     }
 
     private async Task PairDeviceManuallyAsync(DeviceInfo deviceInfo)
@@ -195,6 +237,7 @@ public sealed class WirelessADBManagerToolWindowData : NotifyPropertyChangedObje
         deviceInfo.IsConnected = connectedDeviceInfo.IsConnected;
         deviceInfo.IsPaired = connectedDeviceInfo.IsPaired;
         deviceInfo.State = connectedDeviceInfo.State;
+        deviceInfo.FailureReason = connectedDeviceInfo.FailureReason;
     }
 
     private async Task DisconnectDeviceAsync(DeviceInfo deviceInfo)
@@ -228,6 +271,7 @@ public sealed class WirelessADBManagerToolWindowData : NotifyPropertyChangedObje
         deviceInfo.IsPaired = disconnectedDeviceInfo.IsPaired;
         deviceInfo.IsWirelessAdbEnabled = false;
         deviceInfo.State = disconnectedDeviceInfo.State;
+        deviceInfo.FailureReason = disconnectedDeviceInfo.FailureReason;
     }
 
     private async Task TurnOffWirelessAdbAsync(DeviceInfo deviceInfo)
@@ -255,6 +299,7 @@ public sealed class WirelessADBManagerToolWindowData : NotifyPropertyChangedObje
                 await DisconnectDeviceAsync(deviceInfo);
                 break;
             case DeviceStates.Disconnected:
+            case DeviceStates.ConnectionFailed:
                 await ConnectDeviceAsync(deviceInfo);
                 break;
             case DeviceStates.UsbTcpip:

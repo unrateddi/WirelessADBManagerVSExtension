@@ -17,8 +17,10 @@ public sealed class WirelessAdbManagerService(AdbService _adbService) : IDisposa
     const string ModelPlaceholder = "No Model Info";
     const int PairingKeySize = 5;
     const int PasswordKeySize = 12;
-    const int PairingOverrideThresholdInSeconds = 3;
     const int AdbOperationTimeoutSeconds = 10;
+    // How long a pairing-service announcement is trusted as "still offered" before falling back to Disconnected.
+    // Generous on purpose: phones re-announce periodically and shutdown events for pairing services are unreliable.
+    static readonly TimeSpan PairingFreshnessWindow = TimeSpan.FromSeconds(20);
 
     #endregion
 
@@ -154,12 +156,17 @@ public sealed class WirelessAdbManagerService(AdbService _adbService) : IDisposa
 
     private void OnServiceInstanceShutdown(object? sender, ServiceInstanceShutdownEventArgs e)
     {
-        // Remove the device from the local cache so it is re-evaluated on the next announcement.
         var instanceId = InstanceNameToTypeString(e.ServiceInstanceName);
+
+        // Pairing-service shutdown notifications are unreliable (phones fire them routinely even while
+        // still offering pairing), so only a connect-service shutdown — meaning the device truly went
+        // offline — evicts it. Pairing activity is tracked separately via a freshness window instead.
+        if (ClassifyServiceType(instanceId) != ServiceClass.Connect)
+            return;
+
         lock (_devicesLock)
         {
-            var entry = _devices.Values.FirstOrDefault(d =>
-                d.ConnectServiceId == instanceId || d.PairingServiceId == instanceId);
+            var entry = _devices.Values.FirstOrDefault(d => d.ConnectServiceId == instanceId);
             if (entry is not null)
                 _devices.Remove(entry.Ip);
         }
@@ -246,7 +253,7 @@ public sealed class WirelessAdbManagerService(AdbService _adbService) : IDisposa
             {
                 PairingPort = service.Port,
                 PairingServiceId = service.ServiceType,
-                LastPairingAnnouncementTime = service.AnnouncementTime
+                LastQrPairingSeenUtc = DateTime.UtcNow
             };
             lock (_devicesLock) { _devices[service.Ip] = cached; }
         }
@@ -256,7 +263,7 @@ public sealed class WirelessAdbManagerService(AdbService _adbService) : IDisposa
             {
                 cached.PairingPort = service.Port;
                 cached.PairingServiceId = service.ServiceType;
-                cached.LastPairingAnnouncementTime = service.AnnouncementTime;
+                cached.LastQrPairingSeenUtc = DateTime.UtcNow;
             }
         }
 
@@ -275,10 +282,22 @@ public sealed class WirelessAdbManagerService(AdbService _adbService) : IDisposa
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(TimeSpan.FromSeconds(AdbOperationTimeoutSeconds));
 
-        var pairedSuccessfully = await _adbService.AdbPairAsync(cached.Ip, cached.PairingPort, _password, cts.Token);
+        var pairResult = await PairWithTimeoutHandlingAsync(cached.Ip, cached.PairingPort, _password, cts, cancellationToken);
 
-        if (!pairedSuccessfully)
+        if (!pairResult.Success)
+        {
+            // QR pairing failed, so return to the normal manual-pair action instead of showing an active pairing state.
+            yield return new DeviceInfo
+            {
+                Model = ModelPlaceholder,
+                Ip = service.Ip,
+                IsConnected = false,
+                IsPaired = false,
+                State = DeviceStates.ManualPair,
+                FailureReason = BuildQrPairingFailureMessage(pairResult.Message)
+            };
             yield break;
+        }
 
         lock (_devicesLock) { cached.IsPaired = true; }
 
@@ -291,21 +310,33 @@ public sealed class WirelessAdbManagerService(AdbService _adbService) : IDisposa
             State = DeviceStates.Connecting
         };
 
-        var (success, connectedDevice) = await _adbService.AdbConnectAsync(cached.Ip, cached.ConnectPort, cts.Token);
+        var connectResult = await ConnectWithTimeoutHandlingAsync(cached.Ip, cached.ConnectPort, cts, cancellationToken);
 
-        if (!success || connectedDevice is null)
+        if (!connectResult.Success || connectResult.ConnectedDevice is null)
+        {
+            yield return new DeviceInfo
+            {
+                Model = ModelPlaceholder,
+                Ip = service.Ip,
+                IsConnected = false,
+                IsPaired = true,
+                State = DeviceStates.ConnectionFailed,
+                FailureReason = BuildFailureMessage(connectResult.FailureKind, connectResult.Message)
+            };
             yield break;
+        }
 
         lock (_devicesLock)
         {
             cached.IsConnected = true;
+            cached.LastQrPairingSeenUtc = DateTime.MinValue;
             // After an explicit IP:Port connect the ADB serial is always "IP:Port".
             cached.AdbSerial = $"{cached.Ip}:{cached.ConnectPort}";
         }
 
         yield return new DeviceInfo
         {
-            Model = connectedDevice.Model,
+            Model = connectResult.ConnectedDevice.Model,
             Ip = cached.Ip,
             AdbSerial = cached.AdbSerial,
             IsConnected = true,
@@ -318,10 +349,15 @@ public sealed class WirelessAdbManagerService(AdbService _adbService) : IDisposa
     {
         if (cached is null)
         {
+            // The connect service is only advertised once a device has been paired, so a device
+            // first seen through it must be treated as previously paired even though our
+            // per-window cache (cleared in DiscoverDevicesAsync) has no record of it — otherwise
+            // an offline-but-paired phone would lose its reconnect action.
             var newDevice = new DiscoveredDevice(service.Ip)
             {
                 ConnectPort = service.Port,
-                ConnectServiceId = service.ServiceType
+                ConnectServiceId = service.ServiceType,
+                IsPaired = true
             };
             lock (_devicesLock) { _devices[service.Ip] = newDevice; }
 
@@ -330,7 +366,7 @@ public sealed class WirelessAdbManagerService(AdbService _adbService) : IDisposa
                 Model = ModelPlaceholder,
                 Ip = service.Ip,
                 IsConnected = false,
-                IsPaired = false,
+                IsPaired = true,
                 State = DeviceStates.Disconnected
             };
         }
@@ -341,11 +377,23 @@ public sealed class WirelessAdbManagerService(AdbService _adbService) : IDisposa
             cached.ConnectServiceId = service.ServiceType;
         }
 
-        var state = service.AnnouncementTime switch
+        // The phone keeps re-announcing the connect service on mDNS on its own schedule.
+        // If we're already connected/paired (e.g. QR auto-connect just completed), this
+        // re-announcement carries no new information — don't clobber the connected UI state.
+        if (cached.IsConnected)
+            return null;
+
+        // A pairing offer seen within the freshness window takes precedence over the connect
+        // service's own re-announcements, even if the exact announcement timings don't line up.
+        // A device that has never been paired has no reconnect option available either — only a
+        // previously-paired device can meaningfully retry "Connect".
+        var now = DateTime.UtcNow;
+        var state = now switch
         {
-            _ when cached.LastPairingAnnouncementTime.AddSeconds(PairingOverrideThresholdInSeconds) > service.AnnouncementTime => DeviceStates.Pairing,
-            _ when cached.LastManualPairAnnouncementTime.AddSeconds(PairingOverrideThresholdInSeconds) > service.AnnouncementTime => DeviceStates.ManualPair,
-            _ => DeviceStates.Disconnected
+            _ when now - cached.LastQrPairingSeenUtc < PairingFreshnessWindow => DeviceStates.Pairing,
+            _ when now - cached.LastManualPairingSeenUtc < PairingFreshnessWindow => DeviceStates.ManualPair,
+            _ when cached.IsPaired => DeviceStates.Disconnected,
+            _ => DeviceStates.NotPaired
         };
 
         return new DeviceInfo
@@ -353,7 +401,7 @@ public sealed class WirelessAdbManagerService(AdbService _adbService) : IDisposa
             Model = ModelPlaceholder,
             Ip = cached.Ip,
             IsConnected = false,
-            IsPaired = false,
+            IsPaired = cached.IsPaired,
             State = state
         };
     }
@@ -366,7 +414,7 @@ public sealed class WirelessAdbManagerService(AdbService _adbService) : IDisposa
             {
                 PairingPort = service.Port,
                 PairingServiceId = service.ServiceType,
-                LastManualPairAnnouncementTime = service.AnnouncementTime
+                LastManualPairingSeenUtc = DateTime.UtcNow
             };
             lock (_devicesLock) { _devices[service.Ip] = newDevice; }
         }
@@ -376,7 +424,7 @@ public sealed class WirelessAdbManagerService(AdbService _adbService) : IDisposa
             {
                 cached.PairingPort = service.Port;
                 cached.PairingServiceId = service.ServiceType;
-                cached.LastManualPairAnnouncementTime = service.AnnouncementTime;
+                cached.LastManualPairingSeenUtc = DateTime.UtcNow;
             }
         }
 
@@ -403,23 +451,24 @@ public sealed class WirelessAdbManagerService(AdbService _adbService) : IDisposa
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(TimeSpan.FromSeconds(AdbOperationTimeoutSeconds));
 
-        var (success, connectedDevice) = await _adbService.AdbConnectAsync(cached.Ip, cached.ConnectPort, cts.Token);
+        var connectResult = await ConnectWithTimeoutHandlingAsync(cached.Ip, cached.ConnectPort, cts, cancellationToken);
 
         lock (_devicesLock)
         {
-            cached.IsConnected = success;
+            cached.IsConnected = connectResult.Success;
             // Explicit IP:Port connect — ADB always tracks it as "IP:Port" afterwards.
-            if (success) cached.AdbSerial = $"{cached.Ip}:{cached.ConnectPort}";
+            if (connectResult.Success) cached.AdbSerial = $"{cached.Ip}:{cached.ConnectPort}";
         }
 
         return new DeviceInfo
         {
-            Model = success && connectedDevice is not null ? connectedDevice.Model : deviceInfo.Model,
+            Model = connectResult.Success && connectResult.ConnectedDevice is not null ? connectResult.ConnectedDevice.Model : deviceInfo.Model,
             Ip = cached.Ip,
             AdbSerial = cached.AdbSerial,
-            IsConnected = success,
+            IsConnected = connectResult.Success,
             IsPaired = cached.IsPaired,
-            State = success ? DeviceStates.Connected : DeviceStates.Disconnected
+            State = connectResult.Success ? DeviceStates.Connected : DeviceStates.ConnectionFailed,
+            FailureReason = connectResult.Success ? null : BuildFailureMessage(connectResult.FailureKind, connectResult.Message)
         };
     }
 
@@ -476,29 +525,39 @@ public sealed class WirelessAdbManagerService(AdbService _adbService) : IDisposa
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(TimeSpan.FromSeconds(AdbOperationTimeoutSeconds));
 
-        var pairedSuccessfully = await _adbService.AdbPairAsync(cached.Ip, cached.PairingPort, password, cts.Token);
+        var pairResult = await PairWithTimeoutHandlingAsync(cached.Ip, cached.PairingPort, password, cts, cancellationToken);
 
-        if (!pairedSuccessfully)
-            return new DeviceInfo { Model = deviceInfo.Model, Ip = cached.Ip, IsConnected = false, IsPaired = false, State = DeviceStates.ManualPair };
+        if (!pairResult.Success)
+            // Reset back to the actionable "Pair" state so the user can simply retry with a new code.
+            return new DeviceInfo
+            {
+                Model = deviceInfo.Model,
+                Ip = cached.Ip,
+                IsConnected = false,
+                IsPaired = false,
+                State = DeviceStates.ManualPair,
+                FailureReason = BuildFailureMessage(pairResult.FailureKind, pairResult.Message)
+            };
 
         lock (_devicesLock) { cached.IsPaired = true; }
 
-        var (success, connectedDevice) = await _adbService.AdbConnectAsync(cached.Ip, cached.ConnectPort, cts.Token);
+        var connectResult = await ConnectWithTimeoutHandlingAsync(cached.Ip, cached.ConnectPort, cts, cancellationToken);
 
         lock (_devicesLock)
         {
-            cached.IsConnected = success;
-            if (success) cached.AdbSerial = $"{cached.Ip}:{cached.ConnectPort}";
+            cached.IsConnected = connectResult.Success;
+            if (connectResult.Success) cached.AdbSerial = $"{cached.Ip}:{cached.ConnectPort}";
         }
 
         return new DeviceInfo
         {
-            Model = success && connectedDevice is not null ? connectedDevice.Model : deviceInfo.Model,
+            Model = connectResult.Success && connectResult.ConnectedDevice is not null ? connectResult.ConnectedDevice.Model : deviceInfo.Model,
             Ip = cached.Ip,
             AdbSerial = cached.AdbSerial,
-            IsConnected = success,
+            IsConnected = connectResult.Success,
             IsPaired = true,
-            State = success ? DeviceStates.Connected : DeviceStates.ManualPair
+            State = connectResult.Success ? DeviceStates.Connected : DeviceStates.ConnectionFailed,
+            FailureReason = connectResult.Success ? null : BuildFailureMessage(connectResult.FailureKind, connectResult.Message)
         };
     }
 
@@ -613,6 +672,66 @@ public sealed class WirelessAdbManagerService(AdbService _adbService) : IDisposa
     /// <summary>Returns the configured TCP/IP port (or a random ephemeral port).</summary>
     internal Task<int> GetTcpIpPortAsync(CancellationToken cancellationToken)
         => _adbService.GetTcpIpPortAsync(cancellationToken);
+
+    #region Failure handling
+
+    /// <summary>
+    /// Runs <see cref="AdbService.AdbPairAsync"/> and tells apart the operation's own timeout
+    /// (reported as a network failure) from an external cancellation (propagated as-is).
+    /// </summary>
+    private async Task<AdbPairResult> PairWithTimeoutHandlingAsync(
+        string ip, int port, string password, CancellationTokenSource cts, CancellationToken callerToken)
+    {
+        try
+        {
+            return await _adbService.AdbPairAsync(ip, port, password, cts.Token);
+        }
+        catch (OperationCanceledException) when (callerToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            return new AdbPairResult(false, AdbFailureKind.NetworkUnreachable, "Timed out waiting for the device to respond.");
+        }
+    }
+
+    /// <summary>Same distinction as <see cref="PairWithTimeoutHandlingAsync"/>, for connect operations.</summary>
+    private async Task<AdbConnectResult> ConnectWithTimeoutHandlingAsync(
+        string ip, int port, CancellationTokenSource cts, CancellationToken callerToken)
+    {
+        try
+        {
+            return await _adbService.AdbConnectAsync(ip, port, cts.Token);
+        }
+        catch (OperationCanceledException) when (callerToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            return new AdbConnectResult(false, null, AdbFailureKind.NetworkUnreachable, "Timed out waiting for the device to respond.");
+        }
+    }
+
+    private const string NetworkFailureHint = "Couldn't reach the device. Check Wi-Fi, firewall, or AP/client isolation settings.";
+
+    private static string BuildFailureMessage(AdbFailureKind kind, string? detail) => kind switch
+    {
+        AdbFailureKind.NetworkUnreachable => detail is null ? NetworkFailureHint : $"{NetworkFailureHint} (adb: {detail})",
+        AdbFailureKind.Rejected => detail ?? "The device rejected the request.",
+        _ => "Operation failed. Please try again."
+    };
+
+    /// <summary>
+    /// QR pairing uses an auto-generated password embedded in the scanned code, so a genuine
+    /// credential rejection can't happen here — any failure is effectively a connectivity issue,
+    /// regardless of how adb happens to word its response.
+    /// </summary>
+    private static string BuildQrPairingFailureMessage(string? detail) =>
+        detail is null ? NetworkFailureHint : $"{NetworkFailureHint} (adb: {detail})";
+
+    #endregion
 
     #region Helpers
 
