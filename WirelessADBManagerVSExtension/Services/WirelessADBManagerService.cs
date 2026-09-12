@@ -349,21 +349,25 @@ public sealed class WirelessAdbManagerService(AdbService _adbService) : IDisposa
     {
         if (cached is null)
         {
+            // The connect service is only advertised once a device has been paired, so a device
+            // first seen through it must be treated as previously paired even though our
+            // per-window cache (cleared in DiscoverDevicesAsync) has no record of it — otherwise
+            // an offline-but-paired phone would lose its reconnect action.
             var newDevice = new DiscoveredDevice(service.Ip)
             {
                 ConnectPort = service.Port,
-                ConnectServiceId = service.ServiceType
+                ConnectServiceId = service.ServiceType,
+                IsPaired = true
             };
             lock (_devicesLock) { _devices[service.Ip] = newDevice; }
 
-            // Never seen before and not currently offering pairing — no action is possible yet.
             return new DeviceInfo
             {
                 Model = ModelPlaceholder,
                 Ip = service.Ip,
                 IsConnected = false,
-                IsPaired = false,
-                State = DeviceStates.NotPaired
+                IsPaired = true,
+                State = DeviceStates.Disconnected
             };
         }
 
